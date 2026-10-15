@@ -12,6 +12,14 @@ if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": "I am JARVIS by Hashir!"}]
 if "pending_image" not in st.session_state:
     st.session_state.pending_image = None
+if "do_clear" not in st.session_state:
+    st.session_state.do_clear = False
+
+# === FIX: CLEAR BEFORE WIDGET IS CREATED (fixes your red error) ===
+if st.session_state.do_clear:
+    st.session_state.main_input = ""
+    st.session_state.cap = ""
+    st.session_state.do_clear = False
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -55,14 +63,8 @@ if send and st.session_state.get("main_input"):
     final_prompt = st.session_state["main_input"]
 if "voice" in st.session_state:
     final_prompt = st.session_state.pop("voice")
-if st.session_state.get("trigger_create"):
-    final_prompt = st.session_state.get("pending_caption", "")
 
 if final_prompt:
-    # === FIX: CLEAR THE BOX IMMEDIATELY ===
-    st.session_state["main_input"] = ""
-    st.session_state["cap"] = ""
-
     st.session_state.messages.append({"role": "user", "content": final_prompt})
     with st.chat_message("user"):
         if st.session_state.pending_image:
@@ -98,4 +100,7 @@ if final_prompt:
                     box.write(full + "_")
             box.write(full)
             st.session_state.messages.append({"role": "assistant", "content": full})
+
+    # === FIX: SET FLAG TO CLEAR NEXT RUN (not now) ===
+    st.session_state.do_clear = True
     st.rerun()
