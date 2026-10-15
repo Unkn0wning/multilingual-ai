@@ -20,7 +20,7 @@ st.markdown('<p style="text-align:center; color:gray;">Ask anything • Upload P
 
 # --- CLIENT ---
 client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
-MODEL = "gemini-3.5-flash"  # you said 3.5 works, keep your working one here - if fails change to your working name
+MODEL = "gemini-2.0-flash"  # you said 3.5 works, keep your working one here - if fails change to your working name
 
 # --- SIDEBAR ---
 with st.sidebar:
