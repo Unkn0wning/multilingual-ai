@@ -2,18 +2,17 @@ import streamlit as st
 from groq import Groq
 
 st.set_page_config(page_title="Hashir Ali AI", page_icon="👑")
-
 st.title("👑 Hashir Ali AI")
-st.caption("🟢 Online | Super Fast")
+st.caption("🟢 Online | New 2026 Model")
 
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("Add GROQ_API_KEY in Secrets")
+    st.error("Add GROQ_API_KEY in Streamlit Secrets!")
     st.stop()
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Salam Hashir! 👑 How can I help?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Salam Hashir! 👑 I am updated to new 2026 model - ready!"}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -27,7 +26,7 @@ if prompt := st.chat_input("Type a message..."):
         full = ""
         box = st.empty()
         stream = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=st.session_state.messages,
             stream=True
         )
