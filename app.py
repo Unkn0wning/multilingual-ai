@@ -1,38 +1,36 @@
 import streamlit as st
 from groq import Groq
 
-st.set_page_config(page_title="Hashir Ali AI", page_icon="👑")
-st.markdown("<style>#MainMenu,footer,header{visibility:hidden;}.stApp{background:#0b141a;}</style>", unsafe_allow_html=True)
+st.set_page_config(page_title="Hashir AI", page_icon="👑")
+st.title("Hashir Ali AI")
+st.caption("Online WhatsApp Style")
 
-st.title("👑 Hashir Ali AI")
-st.caption("🟢 Online | WhatsApp Style | No Error Version")
-
-try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except:
-    st.error("Add GROQ_API_KEY in Secrets!")
-    st.stop()
-
-SYSTEM = {"role": "system", "content": "You are Hashir Ali AI from Peshawar. Reply in same language as user. Default English. Friendly WhatsApp style."}
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Salam Hashir! 👑 Final fixed version - Ready!"}]
+    st.session_state.messages = []
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# WhatsApp style bottom - SIMPLE, NO HANG
-prompt = st.chat_input("Type a message... + for file, mic for voice")
+prompt = st.chat_input("Type a message...")
 
-# Sidebar for + and Camera and Mic - Stable place
-with st.sidebar:
-    st.header("👑 WhatsApp Menu")
-    st.write("📎 Upload")
-    up = st.file_uploader("Photo / File", type=["png","jpg","pdf","txt"])
-    if up:
-        st.success(up.name)
-    st.write("🎤 Voice")
-    aud = st.audio_input("Voice")
-    if aud:
-        st.info("Voice uploaded - Type 'transcribe my voice' to use
+if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    with st.chat_message("assistant"):
+        full = ""
+        box = st.empty()
+        s = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=st.session_state.messages,
+            stream=True
+        )
+        for c in s:
+            if c.choices[0].delta.content:
+                full += c.choices[0].delta.content
+                box.markdown(full)
+        box.markdown(full)
+        st.session_state.messages.append({"role": "assistant", "content": full})
