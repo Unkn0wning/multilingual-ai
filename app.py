@@ -32,16 +32,12 @@ for m in st.session_state.messages:
             if "map" in m["content"]:
                 st.map(pd.DataFrame([m["content"]["map"]]))
                 st.write(f"📍 {m['content']['text']}")
-            else:
-                if "image" not in m["content"]:
-                    st.write(m["content"].get("text",""))
         else:
             st.write(m["content"])
 
 def make_url(p):
     return "https://image.pollinations.ai/prompt/" + quote(p) + "?width=512&height=512&nologo=true"
 
-# --- GPS MAP HTML WITH SEARCH + BLUE DOT ---
 GPS_MAP_HTML = """
 <!DOCTYPE html>
 <html>
@@ -52,29 +48,46 @@ GPS_MAP_HTML = """
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   body { margin:0; padding:0; font-family: sans-serif; }
-  #map { width:100%; height:400px; border-radius:12px; }
+  #map { width:100%; height:420px; border-radius:12px; }
   #searchBox { display:flex; gap:5px; padding:8px; background:white; border-radius:8px; margin-bottom:8px; }
   #searchInput { flex:1; padding:10px; border:1px solid #ccc; border-radius:8px; font-size:14px; }
-  #searchBtn { padding:10px 15px; background:#0b5fff; color:white; border:none; border-radius:8px; cursor:pointer; }
-  #locateBtn { padding:8px 12px; background:#25D366; color:white; border:none; border-radius:8px; cursor:pointer; width:100%; margin-top:6px; font-weight:bold; }
-  #coords { font-size:12px; padding:5px; background:#f0f0f0; border-radius:6px; margin-top:6px; text-align:center; }
+  #searchBtn { padding:10px 12px; background:#0b5fff; color:white; border:none; border-radius:8px; cursor:pointer; }
+  #controls { display:flex; gap:6px; margin-top:8px; }
+ .ctrlBtn { flex:1; padding:10px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px; }
+  #locateBtn { background:#25D366; color:white; }
+  #satBtn { background:#222; color:white; }
+  #streetBtn { background:#eee; color:#222; }
+  #coords { font-size:12px; padding:6px; background:#f0f0f0; border-radius:6px; margin-top:6px; text-align:center; line-height:1.4; }
 </style>
 </head>
 <body>
 <div id="searchBox">
-  <input id="searchInput" type="text" placeholder="🔍 Search place: e.g. Peshawar, University Town..." />
+  <input id="searchInput" type="text" placeholder="🔍 Search: Peshawar, University..." />
   <button id="searchBtn">Search</button>
 </div>
 <div id="map"></div>
-<button id="locateBtn">📍 Locate Me (GPS Blue Dot)</button>
-<div id="coords">Click Locate Me to get GPS</div>
+<div id="controls">
+  <button id="locateBtn" class="ctrlBtn">📍 My GPS</button>
+  <button id="satBtn" class="ctrlBtn">🛰️ Satellite</button>
+  <button id="streetBtn" class="ctrlBtn">🗺️ Street</button>
+</div>
+<div id="coords">Click 📍 My GPS for blue dot!</div>
 
 <script>
 var map = L.map('map').setView([34.0151, 71.5249], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '© OpenStreetMap'
-}).addTo(map);
+
+// Street Layer (OpenStreetMap)
+var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '© OSM'
+});
+
+// Satellite Layer (Esri World Imagery - Free satellite like Google)
+var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19, attribution: '© Esri Satellite'
+});
+
+street.addTo(map); // default street
+var currentLayer = street;
 
 var userMarker = null;
 var accuracyCircle = null;
@@ -88,69 +101,81 @@ function onLocationFound(e) {
   if (userMarker) map.removeLayer(userMarker);
   if (accuracyCircle) map.removeLayer(accuracyCircle);
 
-  accuracyCircle = L.circle(e.latlng, {radius: acc, color: '#0b5fff', fillColor: '#0b5fff', fillOpacity: 0.15}).addTo(map);
+  accuracyCircle = L.circle(e.latlng, {radius: acc, color: '#0b5fff', fillColor: '#0b5fff', fillOpacity: 0.18}).addTo(map);
 
-  // Blue dot like Google Maps
   var blueDotIcon = L.divIcon({
-    className: 'blue-dot',
-    html: '<div style="background:#0b5fff; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 0 10px rgba(0,0,0,0.5)"></div>',
-    iconSize: [16,16],
-    iconAnchor: [8,8]
+    className: '',
+    html: '<div style="background:#0b5fff; width:18px; height:18px; border-radius:50%; border:3px solid white; box-shadow:0 0 12px #0b5fff, 0 0 0 10px rgba(11,95,255,0.2)"></div>',
+    iconSize: [18,18],
+    iconAnchor: [9,9]
   });
 
-  userMarker = L.marker(e.latlng, {icon: blueDotIcon}).addTo(map).bindPopup("📍 You are here!<br>Lat: " + lat.toFixed(5) + "<br>Lon: " + lng.toFixed(5)).openPopup();
+  userMarker = L.marker(e.latlng, {icon: blueDotIcon}).addTo(map).bindPopup("🔵 You are here!<br>Lat: " + lat.toFixed(6) + "<br>Lon: " + lng.toFixed(6) + "<br>Accuracy: " + Math.round(acc) + "m").openPopup();
 
-  document.getElementById('coords').innerHTML = "✅ GPS Found!<br>Lat: " + lat.toFixed(6) + ", Lon: " + lng.toFixed(6) + "<br>Accuracy: " + Math.round(acc) + "m - Copy these numbers to share!";
+  document.getElementById('coords').innerHTML = "✅ GPS BLUE DOT FOUND!<br>Lat: " + lat.toFixed(6) + " | Lon: " + lng.toFixed(6) + "<br>Accuracy: " + Math.round(acc) + "m - Copy to share below!";
 }
 
 function onLocationError(e) {
-  document.getElementById('coords').innerHTML = "❌ GPS Error: " + e.message + "<br>Please allow location permission in browser!";
+  document.getElementById('coords').innerHTML = "❌ GPS Error: " + e.message + "<br>Allow Location in browser settings!";
 }
 
 map.on('locationfound', onLocationFound);
 map.on('locationerror', onLocationError);
 
 document.getElementById('locateBtn').onclick = function() {
-  document.getElementById('coords').innerHTML = "🔄 Getting GPS... Please allow location permission!";
-  map.locate({setView: true, maxZoom: 16, enableHighAccuracy: true});
+  document.getElementById('coords').innerHTML = "🔄 Getting GPS... Allow permission popup!";
+  map.locate({setView: true, maxZoom: 17, enableHighAccuracy: true});
 };
 
-// SEARCH FUNCTION
+document.getElementById('satBtn').onclick = function() {
+  if (currentLayer!== satellite) {
+    map.removeLayer(currentLayer);
+    satellite.addTo(map);
+    currentLayer = satellite;
+    document.getElementById('coords').innerHTML = "🛰️ Satellite View ON - Like Google Earth!";
+  }
+};
+
+document.getElementById('streetBtn').onclick = function() {
+  if (currentLayer!== street) {
+    map.removeLayer(currentLayer);
+    street.addTo(map);
+    currentLayer = street;
+    document.getElementById('coords').innerHTML = "🗺️ Street View ON!";
+  }
+};
+
 async function searchPlace() {
   var query = document.getElementById('searchInput').value;
   if (!query) return;
   document.getElementById('coords').innerHTML = "🔍 Searching: " + query + "...";
-
   try {
     var res = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(query));
     var data = await res.json();
     if (data && data.length > 0) {
       var lat = parseFloat(data[0].lat);
       var lon = parseFloat(data[0].lon);
-      map.setView([lat, lon], 15);
-
+      map.setView([lat, lon], 16);
       if (searchMarker) map.removeLayer(searchMarker);
-      searchMarker = L.marker([lat, lon]).addTo(map).bindPopup("🔍 " + data[0].display_name + "<br>Lat: " + lat + "<br>Lon: " + lon).openPopup();
-
-      document.getElementById('coords').innerHTML = "✅ Found: " + data[0].display_name + "<br>Lat: " + lat.toFixed(6) + ", Lon: " + lon.toFixed(6);
+      searchMarker = L.marker([lat, lon]).addTo(map).bindPopup("🔍 " + data[0].display_name).openPopup();
+      document.getElementById('coords').innerHTML = "✅ " + data[0].display_name + "<br>Lat: " + lat.toFixed(6) + " | Lon: " + lon.toFixed(6);
     } else {
       document.getElementById('coords').innerHTML = "❌ Not found: " + query;
     }
   } catch(err) {
-    document.getElementById('coords').innerHTML = "❌ Search error - check internet";
+    document.getElementById('coords').innerHTML = "❌ Search needs internet";
   }
 }
 
 document.getElementById('searchBtn').onclick = searchPlace;
 document.getElementById('searchInput').addEventListener('keypress', function(e){ if(e.key==='Enter') searchPlace(); });
 
-// Also allow click on map to get coords
 map.on('click', function(e){
   var lat = e.latlng.lat;
   var lng = e.latlng.lng;
   if (searchMarker) map.removeLayer(searchMarker);
-  searchMarker = L.marker([lat, lng]).addTo(map).bindPopup("Clicked<br>Lat: " + lat.toFixed(5) + "<br>Lon: " + lng.toFixed(5)).openPopup();
-  document.getElementById('coords').innerHTML = "📍 Clicked<br>Lat: " + lat.toFixed(6) + ", Lon: " + lng.toFixed(6) + "<br>Copy to share!";
+  searchMarker = L.marker([lat, lng]).addTo(map).bindPopup("📍 Clicked<br>Lat: " + lat.toFixed(6) + "<br>Lon: " + lng.toFixed(6)).openPopup();
+  document.getElementById('coords').innerHTML = "📍 Clicked<br>Lat: " + lat.toFixed(6) + " | Lon: " + lng.toFixed(6) + "<br>Copy to share!";
 });
 </script>
 </body>
@@ -173,15 +198,14 @@ with c1:
                 st.session_state.pending_caption = cap
 
         st.divider()
-        st.write("**📍 GPS Map + Search**")
-        components.html(GPS_MAP_HTML, height=520)
+        st.write("**📍 GPS Map - Satellite + Search**")
+        components.html(GPS_MAP_HTML, height=580)
 
-        st.caption("After GPS found, copy Lat Lon below:")
-        lat2 = st.number_input("Lat", value=34.0151, format="%.6f", key="lat2")
-        lon2 = st.number_input("Lon", value=71.5249, format="%.6f", key="lon2")
-        if st.button("Share This Location 📤", use_container_width=True, key="share_loc"):
+        lat2 = st.number_input("Your Lat (from blue dot)", value=34.0151, format="%.6f", key="lat2")
+        lon2 = st.number_input("Your Lon (from blue dot)", value=71.5249, format="%.6f", key="lon2")
+        if st.button("Share Location 📤", use_container_width=True, key="share_loc"):
             st.session_state.user_location = {"lat": lat2, "lon": lon2}
-            st.success(f"Location set! Now click Send ➤")
+            st.success("Ready! Click Send ➤ to share!")
 
 with c2:
     chat_text = st.text_input("chat", placeholder="Ask JARVIS anything...", label_visibility="collapsed", key="main_input")
@@ -204,7 +228,7 @@ if "voice" in st.session_state:
     final_prompt = st.session_state.pop("voice")
 if st.session_state.user_location:
     if not final_prompt:
-        final_prompt = f"My current location: {st.session_state.user_location['lat']}, {st.session_state.user_location['lon']}"
+        final_prompt = f"My GPS location: {st.session_state.user_location['lat']}, {st.session_state.user_location['lon']}"
     location_to_send = st.session_state.user_location
 
 if final_prompt:
@@ -224,7 +248,7 @@ if final_prompt:
         low = final_prompt.lower()
         want_image = True if st.session_state.pending_image else any(w in low for w in ["robotic","image","picture","banao","iron man"])
         if location_to_send:
-            resp = f"📍 Got your GPS! Lat {location_to_send['lat']}, Lon {location_to_send['lon']}. Shared like WhatsApp! You can open this in Google Maps offline."
+            resp = f"📍 Got your blue dot GPS! Lat {location_to_send['lat']}, Lon {location_to_send['lon']} - Shared!"
             st.write(resp)
             st.session_state.messages.append({"role": "assistant", "content": resp})
             st.session_state.user_location = None
