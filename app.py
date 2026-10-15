@@ -4,127 +4,140 @@ import base64
 
 st.set_page_config(page_title="Hashir AI", page_icon="👑", layout="centered")
 
-# WhatsApp Dark Theme
+# WhatsApp Dark
 st.markdown("""
 <style>
 #MainMenu, footer, header {visibility: hidden;}
 .stApp {background-color: #111b21;}
-h1, h2, h3, p, span {color: white!important;}
+h1, p {color: white!important;}
+.stTextInput input {background: #2a3942!important; color: white!important; border-radius: 25px!important; border: none!important; padding: 12px 16px!important;}
+.stButton button {border-radius: 50%!important; height: 45px; width: 45px; background: #202c33!important; border: none!important; font-size: 20px;}
+div[data-testid="column"] {display: flex; align-items: center; justify-content: center;}
 </style>
 """, unsafe_allow_html=True)
 
 st.title("👑 Hashir Ali AI")
-st.caption("🟢 Online | Voice + Picture Understanding")
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Salam Hashir! 👑 Now I can HEAR your voice and SEE your pictures! Try uploading or voice!"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Salam Hashir! 👑 WhatsApp Layout Ready! Left + for files, Right Mic for voice!"}]
 
-# Show chat
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+        if isinstance(m["content"], str):
+            st.markdown(m["content"])
+        else:
+            st.markdown("Picture message")
 
-# === SIDEBAR - WHERE AI UNDERSTANDS ===
-with st.sidebar:
-    st.header("👑 WhatsApp Tools")
+# ==== WHATSAPP BOTTOM BAR - LEFT + MIDDLE RIGHT MIC ====
+st.markdown("<br><br>", unsafe_allow_html=True)
+c1, c2, c3 = st.columns([1, 6, 1])
 
-    st.subheader("📷 Picture Upload")
-    img_file = st.file_uploader("Upload Picture", type=["png","jpg","jpeg"], key="img")
-    if img_file:
-        st.image(img_file, caption="Your Picture")
-        if st.button("Ask AI about this picture"):
-            # Convert image to base64 for AI vision
-            b64 = base64.b64encode(img_file.getvalue()).decode()
-            with st.chat_message("user"):
-                st.image(img_file)
-                st.markdown("What is in this picture?")
+prompt_from_anywhere = None
 
-            st.session_state.messages.append({"role": "user", "content": [{"type": "text", "text": "What is in this picture?"}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]})
-
-            with st.chat_message("assistant"):
-                box = st.empty()
-                full = ""
+with c1:
+    with st.popover("＋", use_container_width=True):
+        st.write("Upload File")
+        up_file = st.file_uploader("Choose", type=["png","jpg","jpeg","pdf","txt"], label_visibility="collapsed", key="left_plus")
+        if up_file:
+            st.success(up_file.name)
+            if up_file.type.startswith("image"):
+                st.image(up_file, width=150)
+                # Prepare for AI vision
+                b64 = base64.b64encode(up_file.getvalue()).decode()
+                st.session_state["pending_image"] = b64
+                prompt_from_anywhere = f"I uploaded picture {up_file.name}. What is in it?"
+            else:
+                # For pdf/txt
                 try:
-                    # Use Vision Model
-                    chat = client.chat.completions.create(
-                        model="meta-llama/llama-4-scout-17b-16e-instruct",
-                        messages=st.session_state.messages,
-                        stream=True
-                    )
-                    for c in chat:
-                        if c.choices[0].delta.content:
-                            full += c.choices[0].delta.content
-                            box.markdown(full + "▌")
+                    content = up_file.getvalue().decode()
+                    prompt_from_anywhere = f"I uploaded file {up_file.name}. Content: {content[:2000]}"
                 except:
-                    # Fallback if vision model not available
-                    chat = client.chat.completions.create(
-                        model="openai/gpt-oss-20b",
-                        messages=[{"role": "user", "content": "User uploaded a picture. Tell them you can see pictures now and ask what they want to know about it."}],
-                        stream=True
+                    prompt_from_anywhere = f"I uploaded file {up_file.name}. Please help me with it."
+
+with c2:
+    txt = st.text_input("msg", placeholder="Type a message", label_visibility="collapsed", key="main_input")
+
+with c3:
+    with st.popover("🎤", use_container_width=True):
+        st.write("Voice Command")
+        aud = st.audio_input("Record", label_visibility="collapsed", key="right_mic")
+        if aud:
+            st.audio(aud)
+            with st.spinner("Listening..."):
+                try:
+                    t = client.audio.transcriptions.create(
+                        file=("voice.wav", aud.getvalue()),
+                        model="whisper-large-v3",
+                        response_format="text"
                     )
-                    for c in chat:
-                        if c.choices[0].delta.content:
-                            full += c.choices[0].delta.content
-                            box.markdown(full + "▌")
-                box.markdown(full)
-                st.session_state.messages.append({"role": "assistant", "content": full})
+                    st.success(f"You said: {t}")
+                    prompt_from_anywhere = t
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
-    st.divider()
-    st.subheader("🎤 Voice Message - AI Understands!")
-    voice_file = st.audio_input("Record Voice", key="voice")
-    if voice_file:
-        st.audio(voice_file)
-        with st.spinner("AI is listening..."):
-            try:
-                text = client.audio.transcriptions.create(
-                    file=("voice.wav", voice_file.getvalue()),
-                    model="whisper-large-v3",
-                    response_format="text"
-                )
-                st.success(f"You said: {text}")
-                # Auto send transcribed voice to AI
-                st.session_state["auto_voice"] = text
-            except Exception as e:
-                st.error(f"Voice error: {e}")
+# Text send logic
+if txt:
+    # When user presses Enter in text box, we need a send button
+    if st.session_state.get("main_input"):
+        prompt_from_anywhere = txt
 
-    st.divider()
-    st.subheader("📎 File Upload")
-    doc_file = st.file_uploader("Upload File", type=["pdf","txt"], key="doc")
-    if doc_file:
-        st.success(doc_file.name)
+# Extra send button below text for mobile Enter issue
+if st.button("Send ➤", use_container_width=False):
+    if txt:
+        prompt_from_anywhere = txt
 
-# === MAIN CHAT INPUT ===
-prompt = st.chat_input("Type a message...")
-
-# Check if voice was transcribed
-if "auto_voice" in st.session_state:
-    prompt = st.session_state.pop("auto_voice")
-
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
+# ==== PROCESS ANY PROMPT ====
+if prompt_from_anywhere:
+    # Clear input
+    st.session_state.messages.append({"role": "user", "content": prompt_from_anywhere})
     with st.chat_message("user"):
-        st.markdown(prompt)
+        if "pending_image" in st.session_state:
+            st.image(base64.b64decode(st.session_state["pending_image"]), width=200)
+        st.markdown(prompt_from_anywhere)
+
     with st.chat_message("assistant"):
         full = ""
         box = st.empty()
-        # Simple text list for normal chat
-        text_messages = []
-        for msg in st.session_state.messages:
-            if isinstance(msg["content"], str):
-                text_messages.append(msg)
-            else:
-                text_messages.append({"role": msg["role"], "content": "User asked about a picture"})
 
-        stream = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=text_messages,
-            stream=True
-        )
-        for c in stream:
-            if c.choices[0].delta.content:
-                full += c.choices[0].delta.content
+        # If image was uploaded, use vision model
+        if "pending_image" in st.session_state:
+            b64 = st.session_state.pop("pending_image")
+            msgs = [
+                {"role": "user", "content": [
+                    {"type": "text", "text": prompt_from_anywhere},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                ]}
+            ]
+            try:
+                s = client.chat.completions.create(
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
+                    messages=msgs,
+                    stream=True
+                )
+            except:
+                s = client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=[{"role": "user", "content": prompt_from_anywhere}],
+                    stream=True
+                )
+        else:
+            # Normal text / voice / file
+            all_msgs = [{"role": "system", "content": "You are Hashir Ali AI. Reply same language as user."}] + [m for m in st.session_state.messages if isinstance(m["content"], str)]
+            s = client.chat.completions.create(
+                model="openai/gpt-oss-20b",
+                messages=all_msgs,
+                stream=True
+            )
+
+        for ch in s:
+            if ch.choices[0].delta.content:
+                full += ch.choices[0].delta.content
                 box.markdown(full + "▌")
         box.markdown(full)
         st.session_state.messages.append({"role": "assistant", "content": full})
+
+    # Clear text box
+    st.session_state["main_input"] = ""
+    st.rerun()
