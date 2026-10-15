@@ -1,12 +1,13 @@
-import os
 import streamlit as st
 from google import genai
-from dotenv import load_dotenv
-load_dotenv()
 
-# Initialize the Gemini Client
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+# Initialize the Gemini Client - CORRECT WAY FOR STREAMLIT
+client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 
+# System Instruction
+system_instruction = "You are a helpful multilingual assistant fluent in English, Urdu, and Pashto."
+
+st.title("🤖 My Multilingual AI (English, Urdu, Pashto)")
 # System Instruction
 system_instruction = "You are a helpful multilingual assistant fluent in English, Urdu, and Pashto."
 
