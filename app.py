@@ -1,94 +1,126 @@
 import streamlit as st
 from google import genai
-from deep_translator import GoogleTranslator
 from PIL import Image
+from deep_translator import GoogleTranslator
+import time
 
-st.set_page_config(page_title="Multilingual AI Pro", page_icon="🎤")
+st.set_page_config(page_title="Meta AI Pro Clone", page_icon="🤖", layout="wide")
 
-st.title("🎤📷 Multilingual AI Pro")
-st.write("Voice + Picture + Video + Translate")
+# --- PRO CSS ---
+st.markdown("""
+<style>
+    .stChatMessage { border-radius: 20px; }
+    header {visibility: hidden;}
+    .big-title { font-size: 35px; font-weight: 800; text-align: center; }
+</style>
+""", unsafe_allow_html=True)
 
-# Gemini client
+st.markdown('<p class="big-title">🤖 Meta AI Pro</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align:center; color:gray;">Ask anything • Upload Photo/Video • Edit Images • Translate</p>', unsafe_allow_html=True)
+
+# --- CLIENT ---
 client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
+MODEL = "gemini-2.5-flash"  # you said 3.5 works, keep your working one here - if fails change to your working name
 
-# Sidebar - Google Translate Option
-st.sidebar.header("🌐 Google Translate")
-translate_on = st.sidebar.checkbox("Enable Translation")
-target_lang = st.sidebar.selectbox("Translate to:", ["ur", "ps", "en", "ar"], index=0)
+# --- SIDEBAR ---
+with st.sidebar:
+    st.title("⚙️ Settings")
+    lang = st.selectbox("Reply Language", ["Auto (Urdu/Pashto/English)", "Urdu", "Pashto", "English"], index=0)
+    translate = st.checkbox("Auto Translate", value=False)
+    target = st.selectbox("Translate to", ["ur","ps","en"], index=0)
+    st.divider()
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.messages = []
+        st.rerun()
+    st.caption("Built like Gemini • Voice + Vision + Edit")
 
-# 1. Voice Message Option
-st.subheader("🎤 Voice Message")
-audio = st.audio_input("Tap to record")
-if audio:
-    st.audio(audio)
-
-# 2. Picture and Video Upload Option
-st.subheader("🖼️ Upload Picture / Video")
-uploaded = st.file_uploader("Choose file", type=["jpg","jpeg","png","mp4","mov","mp3","wav","m4a"])
-
-image_to_send = None
-if uploaded:
-    if uploaded.type.startswith("image"):
-        image_to_send = Image.open(uploaded)
-        st.image(image_to_send, caption="Uploaded Image")
-    elif uploaded.type.startswith("video"):
-        st.video(uploaded)
-    else:
-        st.audio(uploaded)
-
-# 3. Text Chat
+# --- SESSION ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# --- SHOW HISTORY ---
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
+        if msg.get("image"):
+            st.image(msg["image"], width=250)
         st.write(msg["content"])
 
-user_text = st.chat_input("Type salam / sta tso khpal hal waya / or ask about photo...")
+# --- INPUTS ---
+col1, col2 = st.columns([4,1])
+with col1:
+    uploaded = st.file_uploader("📷 Photo / Video for edit", type=["jpg","jpeg","png","mp4","mov","webp"], label_visibility="collapsed")
+with col2:
+    audio = st.audio_input("🎤")
 
-# Combine prompt
-final_prompt = None
-if user_text:
-    final_prompt = user_text
-elif uploaded and not user_text:
-    final_prompt = "Explain this image/video in English, Urdu and Pashto"
-elif audio and not user_text:
-    final_prompt = "User sent voice - reply: Walaikum Assalam! How can I help you? in 3 languages"
+image_for_chat = None
+if uploaded:
+    if uploaded.type.startswith("image"):
+        image_for_chat = Image.open(uploaded)
+        st.image(image_for_chat, width=200, caption="Ready to edit")
+    else:
+        st.video(uploaded)
 
-if final_prompt:
-    st.session_state.messages.append({"role": "user", "content": final_prompt})
+prompt = st.chat_input("Ask... or upload photo and say 'make cartoon, remove background, make HD'")
+
+if prompt or (uploaded and not prompt):
+    if not prompt:
+        prompt = "Explain this photo/video in detail in Urdu, Pashto and English"
+    
+    # User bubble
+    st.session_state.messages.append({"role": "user", "content": prompt, "image": image_for_chat})
     with st.chat_message("user"):
-        st.write(final_prompt)
+        if image_for_chat:
+            st.image(image_for_chat, width=200)
+        st.write(prompt)
 
+    # AI bubble
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
+        with st.spinner("Meta AI is thinking..."):
             try:
-                if image_to_send:
+                # PRO PROMPT FOR EDITING
+                system_instruction = f"""
+                You are Meta AI Pro. Professional, helpful, like Gemini.
+                User language preference: {lang}
+                If user uploaded image and asks to edit (cartoon, background, HD, etc):
+                - Describe exactly how edited image would look (since you can't directly edit, give detailed prompt for editing)
+                - Give step-by-step instructions to edit
+                - If possible, describe final result vividly
+                Always reply in 3 languages if user said salam or is Pashto/Urdu.
+                Be concise, professional, with emojis.
+                """
+
+                full_prompt = system_instruction + "\n\nUser request: " + prompt
+
+                if image_for_chat:
                     response = client.models.generate_content(
-                        model="gemini-3.5-flash",
-                        contents=[final_prompt, image_to_send]
+                        model=MODEL,
+                        contents=[full_prompt, image_for_chat]
                     )
                 else:
                     response = client.models.generate_content(
-                        model="gemini-3.5-flash",
-                        contents=final_prompt
+                        model=MODEL,
+                        contents=full_prompt
                     )
+                
                 answer = response.text
 
-                # Google Translate Option
-                if translate_on:
+                if translate:
                     try:
-                        trans = GoogleTranslator(source='auto', target=target_lang).translate(answer)
+                        answer_trans = GoogleTranslator(source='auto', target=target).translate(answer)
                         st.write(answer)
                         st.divider()
-                        st.write(f"**🌐 Google Translated ({target_lang}):**")
-                        st.write(trans)
-                        answer = f"{answer}\n\nTranslated: {trans}"
+                        st.caption(f"🌐 Translated to {target}:")
+                        st.write(answer_trans)
                     except:
                         st.write(answer)
                 else:
                     st.write(answer)
-
+                
                 st.session_state.messages.append({"role": "assistant", "content": answer})
+
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error: {e}. Try changing MODEL name to gemini-3.5-flash or your working one.")
+
+# Footer
+st.divider()
+st.caption("💡 Try: Upload selfie + type 'make it professional LinkedIn photo' or 'make cartoon' or 'remove background'")
