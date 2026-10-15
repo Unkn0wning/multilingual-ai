@@ -18,8 +18,6 @@ if "do_clear" not in st.session_state:
     st.session_state.do_clear = False
 if "user_location" not in st.session_state:
     st.session_state.user_location = None
-if "last_audio_id" not in st.session_state:
-    st.session_state.last_audio_id = None
 
 if st.session_state.do_clear:
     st.session_state.main_input = ""
@@ -30,28 +28,159 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         if isinstance(m["content"], dict):
             if "image" in m["content"]:
-                st.image(m["content"]["image"], width=350)
+                st.image(m["content"]["image"], width=300)
             if "map" in m["content"]:
                 st.map(pd.DataFrame([m["content"]["map"]]))
+                st.write(f"📍 {m['content']['text']}")
         else:
             st.write(m["content"])
 
 def make_url(p):
-    return "https://image.pollinations.ai/prompt/" + quote(p[:400]) + "?width=768&height=768&nologo=true"
+    return "https://image.pollinations.ai/prompt/" + quote(p) + "?width=512&height=512&nologo=true"
 
-GPS_MAP_HTML = """<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>body{margin:0}#map{width:100%;height:400px;border-radius:12px}#searchBox{display:flex;gap:5px;padding:8px;background:white;border-radius:8px;margin-bottom:8px}#searchInput{flex:1;padding:8px;border:1px solid #ccc;border-radius:8px}#searchBtn{padding:8px;background:#0b5fff;color:white;border:none;border-radius:8px}#controls{display:flex;gap:5px;margin-top:6px}.ctrlBtn{flex:1;padding:8px;border:none;border-radius:8px;font-weight:bold}#locateBtn{background:#25D366;color:white}#satBtn{background:#222;color:white}#streetBtn{background:#eee}</style></head><body>
-<div id="searchBox"><input id="searchInput" placeholder="Search..."/><button id="searchBtn">Search</button></div><div id="map"></div>
-<div id="controls"><button id="locateBtn" class="ctrlBtn">📍 GPS</button><button id="satBtn" class="ctrlBtn">🛰️ Sat</button><button id="streetBtn" class="ctrlBtn">🗺️ Street</button></div>
-<div id="coords" style="font-size:12px;padding:6px;background:#f0f0f0;border-radius:6px;margin-top:6px;text-align:center">GPS ready!</div>
+GPS_MAP_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  body { margin:0; padding:0; font-family: sans-serif; }
+  #map { width:100%; height:420px; border-radius:12px; }
+  #searchBox { display:flex; gap:5px; padding:8px; background:white; border-radius:8px; margin-bottom:8px; }
+  #searchInput { flex:1; padding:10px; border:1px solid #ccc; border-radius:8px; font-size:14px; }
+  #searchBtn { padding:10px 12px; background:#0b5fff; color:white; border:none; border-radius:8px; cursor:pointer; }
+  #controls { display:flex; gap:6px; margin-top:8px; }
+ .ctrlBtn { flex:1; padding:10px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px; }
+  #locateBtn { background:#25D366; color:white; }
+  #satBtn { background:#222; color:white; }
+  #streetBtn { background:#eee; color:#222; }
+  #coords { font-size:12px; padding:6px; background:#f0f0f0; border-radius:6px; margin-top:6px; text-align:center; line-height:1.4; }
+</style>
+</head>
+<body>
+<div id="searchBox">
+  <input id="searchInput" type="text" placeholder="🔍 Search: Peshawar, University..." />
+  <button id="searchBtn">Search</button>
+</div>
+<div id="map"></div>
+<div id="controls">
+  <button id="locateBtn" class="ctrlBtn">📍 My GPS</button>
+  <button id="satBtn" class="ctrlBtn">🛰️ Satellite</button>
+  <button id="streetBtn" class="ctrlBtn">🗺️ Street</button>
+</div>
+<div id="coords">Click 📍 My GPS for blue dot!</div>
+
 <script>
-var map=L.map('map').setView([34.0151,71.5249],13);var street=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);var sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19});var cur=street;var userMarker=null,circle=null;
-function onFound(e){if(userMarker)map.removeLayer(userMarker);if(circle)map.removeLayer(circle);circle=L.circle(e.latlng,{radius:e.accuracy,color:'#0b5fff',fillOpacity:0.15}).addTo(map);var icon=L.divIcon({html:'<div style="background:#0b5fff;width:18px;height:18px;border-radius:50%;border:3px solid white"></div>',iconSize:[18,18],iconAnchor:[9,9]});userMarker=L.marker(e.latlng,{icon:icon}).addTo(map).bindPopup("You here").openPopup();document.getElementById('coords').innerHTML="Lat:"+e.latlng.lat.toFixed(6)+" Lon:"+e.latlng.lng.toFixed(6);}
-map.on('locationfound',onFound);document.getElementById('locateBtn').onclick=()=>map.locate({setView:true,maxZoom:17,enableHighAccuracy:true});
-document.getElementById('satBtn').onclick=()=>{map.removeLayer(cur);sat.addTo(map);cur=sat;};document.getElementById('streetBtn').onclick=()=>{map.removeLayer(cur);street.addTo(map);cur=street;};
-async function s(){var q=document.getElementById('searchInput').value;var r=await fetch("https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(q));var d=await r.json();if(d.length>0)map.setView([parseFloat(d[0].lat),parseFloat(d[0].lon)],15);}document.getElementById('searchBtn').onclick=s;
-</script></body></html>"""
+var map = L.map('map').setView([34.0151, 71.5249], 13);
+
+// Street Layer (OpenStreetMap)
+var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '©️ OSM'
+});
+
+// Satellite Layer (Esri World Imagery - Free satellite like Google)
+var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19, attribution: '©️ Esri Satellite'
+});
+
+street.addTo(map); // default street
+var currentLayer = street;
+
+var userMarker = null;
+var accuracyCircle = null;
+var searchMarker = null;
+
+function onLocationFound(e) {
+  var lat = e.latlng.lat;
+  var lng = e.latlng.lng;
+  var acc = e.accuracy;
+
+  if (userMarker) map.removeLayer(userMarker);
+  if (accuracyCircle) map.removeLayer(accuracyCircle);
+
+  accuracyCircle = L.circle(e.latlng, {radius: acc, color: '#0b5fff', fillColor: '#0b5fff', fillOpacity: 0.18}).addTo(map);
+
+  var blueDotIcon = L.divIcon({
+    className: '',
+    html: '<div style="background:#0b5fff; width:18px; height:18px; border-radius:50%; border:3px solid white; box-shadow:0 0 12px #0b5fff, 0 0 0 10px rgba(11,95,255,0.2)"></div>',
+    iconSize: [18,18],
+    iconAnchor: [9,9]
+  });
+
+  userMarker = L.marker(e.latlng, {icon: blueDotIcon}).addTo(map).bindPopup("🔵 You are here!<br>Lat: " + lat.toFixed(6) + "<br>Lon: " + lng.toFixed(6) + "<br>Accuracy: " + Math.round(acc) + "m").openPopup();
+
+  document.getElementById('coords').innerHTML = "✅ GPS BLUE DOT FOUND!<br>Lat: " + lat.toFixed(6) + " | Lon: " + lng.toFixed(6) + "<br>Accuracy: " + Math.round(acc) + "m - Copy to share below!";
+}
+
+function onLocationError(e) {
+  document.getElementById('coords').innerHTML = "❌ GPS Error: " + e.message + "<br>Allow Location in browser settings!";
+}
+
+map.on('locationfound', onLocationFound);
+map.on('locationerror', onLocationError);
+
+document.getElementById('locateBtn').onclick = function() {
+  document.getElementById('coords').innerHTML = "🔄 Getting GPS... Allow permission popup!";
+  map.locate({setView: true, maxZoom: 17, enableHighAccuracy: true});
+};
+
+document.getElementById('satBtn').onclick = function() {
+  if (currentLayer!== satellite) {
+    map.removeLayer(currentLayer);
+    satellite.addTo(map);
+    currentLayer = satellite;
+    document.getElementById('coords').innerHTML = "🛰️ Satellite View ON - Like Google Earth!";
+  }
+};
+
+document.getElementById('streetBtn').onclick = function() {
+  if (currentLayer!== street) {
+    map.removeLayer(currentLayer);
+    street.addTo(map);
+    currentLayer = street;
+    document.getElementById('coords').innerHTML = "🗺️ Street View ON!";
+  }
+};
+
+async function searchPlace() {
+  var query = document.getElementById('searchInput').value;
+  if (!query) return;
+  document.getElementById('coords').innerHTML = "🔍 Searching: " + query + "...";
+  try {
+    var res = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(query));
+    var data = await res.json();
+    if (data && data.length > 0) {
+      var lat = parseFloat(data[0].lat);
+      var lon = parseFloat(data[0].lon);
+      map.setView([lat, lon], 16);
+      if (searchMarker) map.removeLayer(searchMarker);
+      searchMarker = L.marker([lat, lon]).addTo(map).bindPopup("🔍 " + data[0].display_name).openPopup();
+      document.getElementById('coords').innerHTML = "✅ " + data[0].display_name + "<br>Lat: " + lat.toFixed(6) + " | Lon: " + lon.toFixed(6);
+    } else {
+      document.getElementById('coords').innerHTML = "❌ Not found: " + query;
+    }
+  } catch(err) {
+    document.getElementById('coords').innerHTML = "❌ Search needs internet";
+  }
+}
+
+document.getElementById('searchBtn').onclick = searchPlace;
+document.getElementById('searchInput').addEventListener('keypress', function(e){ if(e.key==='Enter') searchPlace(); });
+
+map.on('click', function(e){
+  var lat = e.latlng.lat;
+  var lng = e.latlng.lng;
+  if (searchMarker) map.removeLayer(searchMarker);
+  searchMarker = L.marker([lat, lng]).addTo(map).bindPopup("📍 Clicked<br>Lat: " + lat.toFixed(6) + "<br>Lon: " + lng.toFixed(6)).openPopup();
+  document.getElementById('coords').innerHTML = "📍 Clicked<br>Lat: " + lat.toFixed(6) + " | Lon: " + lng.toFixed(6) + "<br>Copy to share!";
+});
+</script>
+</body>
+</html>
+"""
 
 st.divider()
 c1, c2, c3 = st.columns([1, 7, 1])
@@ -64,67 +193,42 @@ with c1:
             st.image(up, width=150)
             st.session_state.pending_image = base64.b64encode(up.getvalue()).decode()
             st.success("Attached!")
-        if st.session_state.pending_image:
-            cap = st.text_input("What to do?", placeholder="make more robotic, keep faces same", key="cap")
-            ca, cb = st.columns(2)
-            with ca:
-                if st.button("❌ Remove", use_container_width=True):
-                    st.session_state.pending_image = None
-                    st.rerun()
-            with cb:
-                if st.button("✨ CREATE", type="primary", use_container_width=True):
-                    st.session_state.trigger_exact = True
-                    st.rerun()
+            cap = st.text_input("What to do?", placeholder="make more robotic", key="cap")
+            if cap:
+                st.session_state.pending_caption = cap
+
         st.divider()
-        st.write("**📍 GPS Map**")
-        components.html(GPS_MAP_HTML, height=520)
-        lat2 = st.number_input("Lat", value=34.0151, format="%.6f", key="lat2")
-        lon2 = st.number_input("Lon", value=71.5249, format="%.6f", key="lon2")
-        if st.button("Share Location 📤", use_container_width=True):
+        st.write("**📍 GPS Map - Satellite + Search**")
+        components.html(GPS_MAP_HTML, height=580)
+
+        lat2 = st.number_input("Your Lat (from blue dot)", value=34.0151, format="%.6f", key="lat2")
+        lon2 = st.number_input("Your Lon (from blue dot)", value=71.5249, format="%.6f", key="lon2")
+        if st.button("Share Location 📤", use_container_width=True, key="share_loc"):
             st.session_state.user_location = {"lat": lat2, "lon": lon2}
-            st.success("Ready! Click Send!")
+            st.success("Ready! Click Send ➤ to share!")
 
 with c2:
-    st.text_input("chat", placeholder="Ask JARVIS...", label_visibility="collapsed", key="main_input")
+    chat_text = st.text_input("chat", placeholder="Ask JARVIS anything...", label_visibility="collapsed", key="main_input")
 
 with c3:
-    # FIXED VOICE - Direct, not in popover!
-    st.write("🎤")
-    aud = st.audio_input("Voice", label_visibility="collapsed", key="mic_main")
+    with st.popover("🎤", use_container_width=True):
+        aud = st.audio_input("Voice", label_visibility="collapsed", key="mic")
+        if aud:
+            t = client.audio.transcriptions.create(file=("v.wav", aud.getvalue()), model="whisper-large-v3", response_format="text")
+            st.session_state["voice"] = t
 
-# --- FIXED LOGIC ---
+send = st.button("Send ➤")
+
 final_prompt = None
 location_to_send = None
 
-# 1. VOICE AUTO-TRIGGER - FIXED!
-if aud and st.session_state.get("last_audio_id")!= getattr(aud, 'file_id', str(len(aud.getvalue()))):
-    with st.spinner("🎤 Transcribing..."):
-        try:
-            transcription = client.audio.transcriptions.create(
-                file=("voice.wav", aud.getvalue()),
-                model="whisper-large-v3",
-                response_format="text"
-            )
-            st.session_state.last_audio_id = getattr(aud, 'file_id', str(len(aud.getvalue())))
-            final_prompt = transcription
-            st.toast(f"🎤 Heard: {transcription}")
-        except Exception as e:
-            st.error(f"Voice error: {e}")
-
-# Check for manual trigger from photo or previous voice
-if st.session_state.get("trigger_exact"):
-    final_prompt = st.session_state.get("cap", "make more robotic, keep faces identical")
-    st.session_state.trigger_exact = False
-
-if st.session_state.get("voice_text") and st.session_state.get("trigger_voice"):
-    final_prompt = st.session_state.pop("voice_text")
-    st.session_state.trigger_voice = False
-
-send = st.button("Send ➤", use_container_width=True)
-
 if send and st.session_state.get("main_input"):
     final_prompt = st.session_state["main_input"]
-if st.session_state.user_location and (send or final_prompt):
+if "voice" in st.session_state:
+    final_prompt = st.session_state.pop("voice")
+if st.session_state.user_location:
+    if not final_prompt:
+        final_prompt = f"My GPS location: {st.session_state.user_location['lat']}, {st.session_state.user_location['lon']}"
     location_to_send = st.session_state.user_location
 
 if final_prompt:
@@ -142,24 +246,25 @@ if final_prompt:
 
     with st.chat_message("assistant"):
         low = final_prompt.lower()
+        want_image = True if st.session_state.pending_image else any(w in low for w in ["robotic","image","picture","banao","iron man"])
         if location_to_send:
-            resp = f"📍 Got GPS {location_to_send['lat']}, {location_to_send['lon']}"
+            resp = f"📍 Got your blue dot GPS! Lat {location_to_send['lat']}, Lon {location_to_send['lon']} - Shared!"
             st.write(resp)
             st.session_state.messages.append({"role": "assistant", "content": resp})
             st.session_state.user_location = None
-        elif st.session_state.pending_image:
-            with st.spinner("Creating exact..."):
+        elif want_image and st.session_state.pending_image:
+            with st.spinner("Creating..."):
                 try:
-                    v = client.chat.completions.create(model="meta-llama/llama-4-scout-17b-16e-instruct", messages=[{"role": "user", "content": [{"type": "text", "text": f"Describe to keep exact faces and background, add: {final_prompt}"}, {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + st.session_state.pending_image}}]}])
-                    full_p = v.choices[0].message.content + f", {final_prompt}, keep faces identical, keep background identical, photorealistic, 8k"
+                    v = client.chat.completions.create(model="meta-llama/llama-4-scout-17b-16e-instruct", messages=[{"role": "user", "content": [{"type": "text", "text": "Describe"}, {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + st.session_state.pending_image}}]}])
+                    full_p = v.choices[0].message.content + ", " + final_prompt
                 except:
-                    full_p = f"{final_prompt}, keep faces identical, keep background identical river mountains, only robotic armor, photorealistic, 8k"
+                    full_p = final_prompt
                 url = make_url(full_p)
                 st.image(url)
                 st.link_button("Download", url)
                 st.session_state.messages.append({"role": "assistant", "content": {"image": url, "text": full_p}})
                 st.session_state.pending_image = None
-        elif any(w in low for w in ["image","picture","banao","robotic"]):
+        elif want_image:
             url = make_url(final_prompt)
             st.image(url)
             st.session_state.messages.append({"role": "assistant", "content": {"image": url, "text": final_prompt}})
@@ -171,7 +276,7 @@ if final_prompt:
             for ch in s:
                 if ch.choices[0].delta.content:
                     full += ch.choices[0].delta.content
-                    box.write(full + "▌")
+                    box.write(full + "_")
             box.write(full)
             st.session_state.messages.append({"role": "assistant", "content": full})
 
