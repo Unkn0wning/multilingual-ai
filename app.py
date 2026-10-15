@@ -65,12 +65,12 @@ if final_prompt:
             try:
                 if image_to_send:
                     response = client.models.generate_content(
-                        model="gemini-1.5-flash",
+                        model="gemini-3.5-flash",
                         contents=[final_prompt, image_to_send]
                     )
                 else:
                     response = client.models.generate_content(
-                        model="gemini-1.5-flash",
+                        model="gemini-3.5-flash",
                         contents=final_prompt
                     )
                 answer = response.text
