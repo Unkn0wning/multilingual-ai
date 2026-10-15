@@ -1,43 +1,94 @@
 import streamlit as st
 from google import genai
+from deep_translator import GoogleTranslator
+from PIL import Image
 
-# Initialize the Gemini Client - CORRECT WAY FOR STREAMLIT
+st.set_page_config(page_title="Multilingual AI Pro", page_icon="🎤")
+
+st.title("🎤📷 Multilingual AI Pro")
+st.write("Voice + Picture + Video + Translate")
+
+# Gemini client
 client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# System Instruction
-system_instruction = "You are a helpful multilingual assistant fluent in English, Urdu, and Pashto."
+# Sidebar - Google Translate Option
+st.sidebar.header("🌐 Google Translate")
+translate_on = st.sidebar.checkbox("Enable Translation")
+target_lang = st.sidebar.selectbox("Translate to:", ["ur", "ps", "en", "ar"], index=0)
 
-st.title("🤖 My Multilingual AI (English, Urdu, Pashto)")
-# System Instruction
-system_instruction = "You are a helpful multilingual assistant fluent in English, Urdu, and Pashto."
+# 1. Voice Message Option
+st.subheader("🎤 Voice Message")
+audio = st.audio_input("Tap to record")
+if audio:
+    st.audio(audio)
 
-st.title("🤖 My Multilingual AI (English, Urdu, Pashto)")
+# 2. Picture and Video Upload Option
+st.subheader("🖼️ Upload Picture / Video")
+uploaded = st.file_uploader("Choose file", type=["jpg","jpeg","png","mp4","mov","mp3","wav","m4a"])
 
-# Initialize chat history
+image_to_send = None
+if uploaded:
+    if uploaded.type.startswith("image"):
+        image_to_send = Image.open(uploaded)
+        st.image(image_to_send, caption="Uploaded Image")
+    elif uploaded.type.startswith("video"):
+        st.video(uploaded)
+    else:
+        st.audio(uploaded)
+
+# 3. Text Chat
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display previous messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
 
-# User Input
-if user_input := st.chat_input("Type in English, Urdu (اردو), or Pashto (پښتو)..."):
-    st.session_state.messages.append({"role": "user", "content": user_input})
+user_text = st.chat_input("Type salam / sta tso khpal hal waya / or ask about photo...")
+
+# Combine prompt
+final_prompt = None
+if user_text:
+    final_prompt = user_text
+elif uploaded and not user_text:
+    final_prompt = "Explain this image/video in English, Urdu and Pashto"
+elif audio and not user_text:
+    final_prompt = "User sent voice - reply: Walaikum Assalam! How can I help you? in 3 languages"
+
+if final_prompt:
+    st.session_state.messages.append({"role": "user", "content": final_prompt})
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.write(final_prompt)
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-3.5-flash-lite",
-            contents=user_input,
-            config={"system_instruction": system_instruction}
-        )
-        ai_reply = response.text
-    except Exception as e:
-        ai_reply = f"Error: {e}"
-
-    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
     with st.chat_message("assistant"):
-        st.markdown(ai_reply)
+        with st.spinner("Thinking..."):
+            try:
+                if image_to_send:
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=[final_prompt, image_to_send]
+                    )
+                else:
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=final_prompt
+                    )
+                answer = response.text
+
+                # Google Translate Option
+                if translate_on:
+                    try:
+                        trans = GoogleTranslator(source='auto', target=target_lang).translate(answer)
+                        st.write(answer)
+                        st.divider()
+                        st.write(f"**🌐 Google Translated ({target_lang}):**")
+                        st.write(trans)
+                        answer = f"{answer}\n\nTranslated: {trans}"
+                    except:
+                        st.write(answer)
+                else:
+                    st.write(answer)
+
+                st.session_state.messages.append({"role": "assistant", "content": answer})
+            except Exception as e:
+                st.error(f"Error: {e}")
