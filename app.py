@@ -12,13 +12,17 @@ if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": "I am JARVIS by Hashir!"}]
 if "pending_image" not in st.session_state:
     st.session_state.pending_image = None
+if "pending_caption" not in st.session_state:
+    st.session_state.pending_caption = ""
 if "do_clear" not in st.session_state:
     st.session_state.do_clear = False
 
-# === FIX: CLEAR BEFORE WIDGET IS CREATED (fixes your red error) ===
+# === FIX FOR YOUR RED ERROR: CLEAR BEFORE WIDGET ===
 if st.session_state.do_clear:
-    st.session_state.main_input = ""
-    st.session_state.cap = ""
+    if "main_input" in st.session_state:
+        st.session_state.main_input = ""
+    if "cap" in st.session_state:
+        st.session_state.cap = ""
     st.session_state.do_clear = False
 
 for m in st.session_state.messages:
@@ -47,6 +51,7 @@ with c1:
                 st.session_state.pending_caption = cap
 
 with c2:
+    # ONLY Ask JARVIS anything... - Clean!
     chat_text = st.text_input("chat", placeholder="Ask JARVIS anything...", label_visibility="collapsed", key="main_input")
 
 with c3:
@@ -60,7 +65,7 @@ send = st.button("Send ➤")
 
 final_prompt = None
 if send and st.session_state.get("main_input"):
-    final_prompt = st.session_state["main_input"]
+    final_prompt = st.session_state.get("main_input")
 if "voice" in st.session_state:
     final_prompt = st.session_state.pop("voice")
 
@@ -76,8 +81,8 @@ if final_prompt:
         if want_image and st.session_state.pending_image:
             with st.spinner("Creating..."):
                 try:
-                    v = client.chat.completions.create(model="meta-llama/llama-4-scout-17b-16e-instruct", messages=[{"role": "user", "content": [{"type": "text", "text": "Describe"}, {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + st.session_state.pending_image}}]}])
-                    full_p = v.choices[0].message.content + ", " + final_prompt
+                    v = client.chat.completions.create(model="meta-llama/llama-4-scout-17b-16e-instruct", messages=[{"role": "user", "content": [{"type": "text", "text": "Describe this person for image edit"}, {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + st.session_state.pending_image}}]}])
+                    full_p = v.choices[0].message.content + ", " + final_prompt + ", ultra detailed, 8k"
                 except:
                     full_p = final_prompt
                 url = make_url(full_p)
@@ -88,11 +93,13 @@ if final_prompt:
         elif want_image:
             url = make_url(final_prompt)
             st.image(url)
+            st.link_button("Download", url)
             st.session_state.messages.append({"role": "assistant", "content": {"image": url, "text": final_prompt}})
         else:
             full = ""
             box = st.empty()
-            msgs = [{"role": "system", "content": "You are JARVIS by Hashir."}] + [m for m in st.session_state.messages if isinstance(m["content"], str)]
+            # === PROMPT I AM USING - SAME ===
+            msgs = [{"role": "system", "content": "You are JARVIS by Hashir Ali. Your name is JARVIS. You are helpful, smart like Tony Stark's JARVIS. Answer once, same language as user. Created by Hashir Ali."}] + [m for m in st.session_state.messages if isinstance(m["content"], str)]
             s = client.chat.completions.create(model="openai/gpt-oss-20b", messages=msgs, stream=True)
             for ch in s:
                 if ch.choices[0].delta.content:
@@ -101,6 +108,5 @@ if final_prompt:
             box.write(full)
             st.session_state.messages.append({"role": "assistant", "content": full})
 
-    # === FIX: SET FLAG TO CLEAR NEXT RUN (not now) ===
     st.session_state.do_clear = True
     st.rerun()
